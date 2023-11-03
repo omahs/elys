@@ -86,7 +86,7 @@ func RegisterCustomPlugins(
 	})
 
 	messengerDecoratorOpt := wasmkeeper.WithMessageHandlerDecorator(
-		CustomMessageDecorator(amm, margin, staking, commitment),
+		CustomMessageDecorator(amm, margin, staking, commitment, incentive),
 	)
 	return []wasm.Option{
 		queryPluginOpt,
@@ -244,7 +244,7 @@ type QueryBalanceResponse struct {
 	Balance sdk.Coin `protobuf:"bytes,1,opt,name=balance,proto3" json:"balance,omitempty"`
 }
 
-func CustomMessageDecorator(amm *ammkeeper.Keeper, margin *marginkeeper.Keeper, staking *stakingkeeper.Keeper, commitment *commitmentkeeper.Keeper) func(wasmkeeper.Messenger) wasmkeeper.Messenger {
+func CustomMessageDecorator(amm *ammkeeper.Keeper, margin *marginkeeper.Keeper, staking *stakingkeeper.Keeper, commitment *commitmentkeeper.Keeper, incentive *incentivekeeper.Keeper) func(wasmkeeper.Messenger) wasmkeeper.Messenger {
 	return func(old wasmkeeper.Messenger) wasmkeeper.Messenger {
 		return &CustomMessenger{
 			wrapped:    old,
@@ -252,6 +252,7 @@ func CustomMessageDecorator(amm *ammkeeper.Keeper, margin *marginkeeper.Keeper, 
 			margin:     margin,
 			staking:    staking,
 			commitment: commitment,
+			incentive:  incentive,
 		}
 	}
 }
@@ -679,7 +680,7 @@ func PerformMsgRedelegateElys(f *stakingkeeper.Keeper, ctx sdk.Context, contract
 func (m *CustomMessenger) msgCancelUnbondingDelegation(ctx sdk.Context, contractAddr sdk.AccAddress, msgCancelUnbonding *MsgCancelUnbondingDelegation) ([]sdk.Event, [][]byte, error) {
 	var res *RequestResponse
 	var err error
-	if msgCancelUnbonding.Amount.Denom == paramtypes.Elys {
+	if msgCancelUnbonding.Amount.Denom != paramtypes.Elys {
 		return nil, nil, errorsmod.Wrap(err, "invalid asset!")
 	}
 
@@ -736,7 +737,7 @@ func PerformMsgCancelUnbondingElys(f *stakingkeeper.Keeper, ctx sdk.Context, con
 func (m *CustomMessenger) msgVest(ctx sdk.Context, contractAddr sdk.AccAddress, msgVest *MsgVest) ([]sdk.Event, [][]byte, error) {
 	var res *RequestResponse
 	var err error
-	if msgVest.Denom == paramtypes.Eden {
+	if msgVest.Denom != paramtypes.Eden {
 		return nil, nil, errorsmod.Wrap(err, "invalid asset!")
 	}
 
@@ -783,7 +784,7 @@ func PerformMsgVestEden(f *commitmentkeeper.Keeper, ctx sdk.Context, contractAdd
 func (m *CustomMessenger) msgCancelVest(ctx sdk.Context, contractAddr sdk.AccAddress, msgCancelVest *MsgCancelVest) ([]sdk.Event, [][]byte, error) {
 	var res *RequestResponse
 	var err error
-	if msgCancelVest.Denom == paramtypes.Eden {
+	if msgCancelVest.Denom != paramtypes.Eden {
 		return nil, nil, errorsmod.Wrap(err, "invalid asset!")
 	}
 
@@ -938,11 +939,11 @@ type ElysMsg struct {
 	MsgStake                       *MsgStake                       `json:"msg_stake,omitempty"`
 	MsgUnstake                     *MsgUnstake                     `json:"msg_unstake,omitempty"`
 	MsgBeginRedelegate             *MsgBeginRedelegate             `json:"msg_begin_redelegate,omitempty"`
-	MsgCancelUnbondingDelegation   *MsgCancelUnbondingDelegation   `json:"msg_cancel_unbonding_delegation"`
-	MsgVest                        *MsgVest                        `json:"msg_vest"`
-	MsgCancelVest                  *MsgCancelVest                  `json:"msg_cancel_vest"`
-	MsgWithdrawRewards             *MsgWithdrawRewards             `json:"msg_withdraw_rewards"`
-	MsgWithdrawValidatorCommission *MsgWithdrawValidatorCommission `json:"msg_withdraw_validator_commission"`
+	MsgCancelUnbondingDelegation   *MsgCancelUnbondingDelegation   `json:"msg_cancel_unbonding_delegation,omitempty"`
+	MsgVest                        *MsgVest                        `json:"msg_vest,omitempty"`
+	MsgCancelVest                  *MsgCancelVest                  `json:"msg_cancel_vest,omitempty"`
+	MsgWithdrawRewards             *MsgWithdrawRewards             `json:"msg_withdraw_rewards,omitempty"`
+	MsgWithdrawValidatorCommission *MsgWithdrawValidatorCommission `json:"msg_withdraw_validator_commission,omitempty"`
 }
 
 type MsgSwapExactAmountIn struct {
@@ -1019,12 +1020,6 @@ type MsgVest struct {
 }
 
 type MsgCancelVest struct {
-	Creator string              `protobuf:"bytes,1,opt,name=creator,proto3" json:"creator,omitempty"`
-	Amount  cosmos_sdk_math.Int `protobuf:"bytes,2,opt,name=amount,proto3,customtype=github.com/cosmos/cosmos-sdk/types.Int" json:"amount"`
-	Denom   string              `protobuf:"bytes,3,opt,name=denom,proto3" json:"denom,omitempty"`
-}
-
-type MsgWithdrawTokens struct {
 	Creator string              `protobuf:"bytes,1,opt,name=creator,proto3" json:"creator,omitempty"`
 	Amount  cosmos_sdk_math.Int `protobuf:"bytes,2,opt,name=amount,proto3,customtype=github.com/cosmos/cosmos-sdk/types.Int" json:"amount"`
 	Denom   string              `protobuf:"bytes,3,opt,name=denom,proto3" json:"denom,omitempty"`
